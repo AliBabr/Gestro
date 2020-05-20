@@ -16,7 +16,7 @@ bool Sensor56Right_last = 0;
 bool PIRSensor = 0;
 
 uint64_t currentTime = 0;
-
+uint64_t FilterTime = 0;
 
 uint16_t LeftINCounter;
 uint16_t RightINCounter;
@@ -37,6 +37,11 @@ uint64_t Right56Timeout = 0;
 uint64_t  LeftPersonTimeout = 0;
 uint64_t  RightPersonTimeout = 0;
 
+uint64_t PumpTimeout = 0;
+uint64_t PumpCoolDown = 0;
+uint64_t PumpVentilationTimeout = 0;
+
+
 uint64_t SendTime = 0;
 
 byte Left38Raw = 0;
@@ -46,48 +51,51 @@ byte Right56Raw = 0;
 
 byte BatteryPercentage = 0;
 
+byte HandSensor = 0;
+byte RunPumpVentilation = 0;
+uint16_t DesinfectantDose = 600; //in millis
+
 
 
 void setup() {
   // put your setup code here, to run once:
-pinMode(LED_38_KHZ_LEFT,OUTPUT); //TIMER2
-pinMode(LED_38_KHZ_RIGHT, OUTPUT); //TIMER2
+  pinMode(LED_38_KHZ_LEFT, OUTPUT); //TIMER2
+  pinMode(LED_38_KHZ_RIGHT, OUTPUT); //TIMER2
 
-pinMode(LED_56_KHZ_LEFT,OUTPUT); // TIMER1
-pinMode(LED_56_KHZ_RIGHT, OUTPUT); //TIMER1
+  pinMode(LED_56_KHZ_LEFT, OUTPUT); // TIMER1
+  pinMode(LED_56_KHZ_RIGHT, OUTPUT); //TIMER1
+
+  pinMode(LED_56_KHZ_HAND, OUTPUT);
+  pinMode(BLUE_LED, OUTPUT);
+  pinMode(SENSOR_56_KHZ_HAND, INPUT_PULLUP);
+  
+  pinMode(REL_1, OUTPUT);
+  pinMode(REL_2, OUTPUT);
+  pinMode(REL_3, OUTPUT);
+  pinMode(REL_4, OUTPUT);
 
 
-pinMode(REL_1,OUTPUT); 
-pinMode(REL_2, OUTPUT); 
-pinMode(REL_3,OUTPUT); 
-pinMode(REL_4, OUTPUT); 
+  pinMode(SENSOR_38_KHZ_LEFT, INPUT_PULLUP);
+  pinMode(SENSOR_38_KHZ_RIGHT, INPUT_PULLUP);
 
+  pinMode(SENSOR_56_KHZ_LEFT, INPUT_PULLUP);
+  pinMode(SENSOR_56_KHZ_RIGHT, INPUT_PULLUP);
+  pinMode(PIR_SENSOR, INPUT);
 
-pinMode(SENSOR_38_KHZ_LEFT, INPUT);
-pinMode(SENSOR_38_KHZ_RIGHT, INPUT);
+  attachPinChangeInterrupt(SENSOR_38_KHZ_LEFT, read38Left, FALLING);
+  attachPinChangeInterrupt(SENSOR_38_KHZ_RIGHT, read38Right, FALLING);
+  attachPinChangeInterrupt(SENSOR_56_KHZ_LEFT, read56Left, FALLING);
+  attachPinChangeInterrupt(SENSOR_56_KHZ_RIGHT, read56Right, FALLING);
 
-pinMode(SENSOR_56_KHZ_LEFT, INPUT);
-pinMode(SENSOR_56_KHZ_RIGHT, INPUT);
-pinMode(PIR_SENSOR,INPUT);
+  Serial.begin(9600);
 
-attachPinChangeInterrupt(SENSOR_38_KHZ_LEFT, read38Left, FALLING);
-attachPinChangeInterrupt(SENSOR_38_KHZ_RIGHT, read38Right, FALLING);
-attachPinChangeInterrupt(SENSOR_56_KHZ_LEFT, read56Left, FALLING);
-attachPinChangeInterrupt(SENSOR_56_KHZ_RIGHT, read56Right, FALLING);
-
-Serial.begin(9600);
-
-write38();
-
-write56();
-
-//Timer1.initialize(17); //17 us 58 KHz
- Timer1.pwm(LED_56_KHZ_LEFT, 512);
+  write38();
+  write56();
 }
 
 void stopTransducer()
 {
-    TCCR2A = _BV(COM2A1) | _BV(COM2B1);
+  TCCR2A = _BV(COM2A1) | _BV(COM2B1);
 }
 
 //OCR2A = 142 //56 KHz
@@ -109,161 +117,267 @@ void stop38()
 void write56()
 {
 
- Timer1.initialize(18); //17 us 58 KHz
+  Timer1.initialize(18); //18 us 56 KHz
+  Timer1.pwm(LED_56_KHZ_LEFT, 512);
+  Timer1.pwm(LED_56_KHZ_RIGHT, 512);
+ // Timer1.pwm(LED_56_KHZ_HAND, 512);
 }
 
 void stop56()
 {
-  
+
 }
+
 
 
 void read38Left()
 {
-   if(Sensor38Left == false)
-   { 
-     Sensor38Left = true;
-     Left38FirstHitTime = millis();
-     Left38Timeout = Left38FirstHitTime + SENSOR_TIMEOUT;
-   }
+  if (Sensor38Left == false)
+  {
+    Sensor38Left = true;
+    Left38FirstHitTime = micros();
+    Left38Timeout = Left38FirstHitTime + SENSOR_TIMEOUT;
+  }
 }
 
 
 void read38Right()
 {
-  if(Sensor38Right == false)
-   {
-      Sensor38Right = true;
-      Right38FirstHitTime = millis();
-      Right38Timeout = Right38FirstHitTime + SENSOR_TIMEOUT;
-   }
+  if (Sensor38Right == false)
+  {
+    Sensor38Right = true;
+    Right38FirstHitTime = micros();
+    Right38Timeout = Right38FirstHitTime + SENSOR_TIMEOUT;
+  }
 }
 
 void read56Left()
-{ 
-  if(Sensor56Left == false)
+{
+  if (Sensor56Left == false)
   {
-  Sensor56Left = true;
-  Left56FirstHitTime = millis();
-  Left56Timeout = Left56FirstHitTime + SENSOR_TIMEOUT;
+    Sensor56Left = true;
+    Left56FirstHitTime = micros();
+    Left56Timeout = Left56FirstHitTime + SENSOR_TIMEOUT;
   }
 }
 
 void read56Right()
 {
-  if(Sensor56Right == false)
+  if (Sensor56Right == false)
   {
     Sensor56Right = true;
-    Right56FirstHitTime = millis();
+    Right56FirstHitTime = micros();
     Right56Timeout = Right56FirstHitTime + SENSOR_TIMEOUT;
   }
 }
 
 
+
+
 void checkTimeouts()
 {
-   if(Left38Timeout < currentTime)
-   {
-      Sensor38Left = false;
-   }
-      if(Right38Timeout < currentTime)
-   {
-      Sensor38Right = false;
-   }
-      if(Left56Timeout < currentTime)
-   {
-      Sensor56Left = false;
-   }
-      if(Right56Timeout < currentTime)
-   {
-      Sensor56Right = false;
-   }
+  if (Left38Timeout < currentTime)
+  {
+    Sensor38Left = false;
+  }
+  if (Right38Timeout < currentTime)
+  {
+    Sensor38Right = false;
+  }
+  if (Left56Timeout < currentTime)
+  {
+    Sensor56Left = false;
+  }
+  if (Right56Timeout < currentTime)
+  {
+    Sensor56Right = false;
+  }
 
-   if((RightPersonTimeout > currentTime))
-   {
+  if ((RightPersonTimeout > currentTime))
+  {
     Sensor38Right = false;
     Sensor56Right = false;
 
-   }
-   
-   if((LeftPersonTimeout > currentTime))
-   {
-    Sensor38Left = false;
-    Sensor56Left = false;
-    
-   }
-}
-
- 
-void checkDirection()
-{
-  if(Sensor38Left && Sensor56Left && (LeftPersonTimeout < currentTime))
-  {
-    if(Left38FirstHitTime > Left56FirstHitTime) LeftINCounter++;
-    else LeftOUTCounter++;
-    LeftPersonTimeout = currentTime + DELAY_BETWEEN_PERSONS;
-
   }
 
-  if(Sensor38Right && Sensor56Right && (RightPersonTimeout < currentTime))
+  if ((LeftPersonTimeout > currentTime))
   {
-    if(Right38FirstHitTime > Right56FirstHitTime) RightINCounter++;
-    else RightOUTCounter++;
+    Sensor38Left = false;
+    Sensor56Left = false;
 
+  }
+}
+
+
+void checkDirection()
+{
+  if (Sensor38Left && Sensor56Left && (LeftPersonTimeout < currentTime))
+  {
+    if (Left38FirstHitTime > Left56FirstHitTime) LeftINCounter++;
+    else LeftOUTCounter++;
+    LeftPersonTimeout = currentTime + DELAY_BETWEEN_PERSONS;
+  }
+
+  if (Sensor38Right && Sensor56Right && (RightPersonTimeout < currentTime))
+  {
+    if (Right38FirstHitTime > Right56FirstHitTime) RightINCounter++;
+    else RightOUTCounter++;
     RightPersonTimeout = currentTime + DELAY_BETWEEN_PERSONS;
   }
 }
 
+static uint16_t Left38Sum;
+static uint8_t Left38Filt = 0;
+
+static uint32_t Left56Sum;
+static uint16_t Left56Filt = 0;
+
+static uint16_t Right38Sum;
+static uint8_t Right38Filt = 0;
+
+static uint32_t Right56Sum;
+static uint16_t Right56Filt = 0;
+
 void checkRange()
 {
-    if(!digitalRead(SENSOR_38_KHZ_LEFT))
-    {
-      Left38Raw = true;
-       #ifdef DEBUG 
-       Serial.println("00000     ");
-       #endif
-    }
-    if(!digitalRead(SENSOR_56_KHZ_LEFT))
-    {
-      Left56Raw = true;
-       #ifdef DEBUG 
-       Serial.println("     00000");
-       #endif
-    }
-    if(!digitalRead(SENSOR_38_KHZ_RIGHT))
-    {
-      Right38Raw = true;
-    }
-    if(!digitalRead(SENSOR_56_KHZ_RIGHT))
-    {
-      Right56Raw = true;
-    }
+  bool left38 = digitalRead(SENSOR_38_KHZ_LEFT);
+  bool left56 = digitalRead(SENSOR_56_KHZ_LEFT);
+  bool right38 = digitalRead(SENSOR_38_KHZ_RIGHT);
+  bool right56 = digitalRead(SENSOR_56_KHZ_RIGHT);
+  bool hand56 = digitalRead(SENSOR_56_KHZ_HAND);
+
+  if (!left38)
+  {
+    if (Left38Raw <= 255) Left38Raw++;
+  }
+
+  if (!left56)
+  {
+    if (Left56Raw <= 255) Left56Raw++;
+  }
+
+  if (!right38)
+  {
+    if (Right38Raw <= 255) Right38Raw++;
+  }
+
+  if (!right56)
+  {
+    if (Right56Raw <= 255) Right56Raw++;
+  }
+
+
+
+}
+
+#define FILTER_POWER 2
+void FilterRawData()
+{
+    Left38Sum = Left38Sum - Left38Filt + Left38Raw;
+    Left38Filt = Left38Sum >> (FILTER_POWER);
+    
+    Left56Sum = Left56Sum - Left56Filt + Left56Raw;
+    Left56Filt = Left56Sum >> (FILTER_POWER);
+    
+    Right38Sum = Right38Sum - Right38Filt + Right38Raw;
+    Right38Filt = Right38Sum >> (FILTER_POWER);
+    
+    Right56Sum = Right56Sum - Right56Filt + Right56Raw;
+    Right56Filt = Right56Sum >> (FILTER_POWER);
+}
+
+#define ONE_SEC_USEC 200000
+void CheckHandSensor()
+{
+   byte isHand = 0;
+   if(PumpCoolDown < currentTime) //
+   {
+      isHand = !digitalRead(SENSOR_56_KHZ_HAND);
+    
+   }
+   else isHand = 0;
+
+   if(!digitalRead(SENSOR_56_KHZ_HAND) ) PumpCoolDown = currentTime + ONE_SEC_USEC;
+   
+   if(isHand && PumpTimeout < currentTime)
+   {
+     PumpTimeout = currentTime + 600000;//(DesinfectantDose*1000);
+   }
+
+   if(PumpTimeout > currentTime)
+   {
+     digitalWrite(REL_3,true);
+     //PumpCoolDown = currentTime + ONE_SEC_USEC;
+     digitalWrite(BLUE_LED,true);
+     HandSensor = true;
+   }
+   else
+   {
+     digitalWrite(REL_3,false);
+     digitalWrite(BLUE_LED,false);
+   }
+}
+#define VENTILATION_TIME 12000000 //12sec
+#define ONE_CYCLE_DELAY 100000
+void PumpVentilation()
+{
+   if(RunPumpVentilation && (PumpVentilationTimeout < currentTime))
+   {
+    PumpVentilationTimeout = currentTime + VENTILATION_TIME;
+   }
+
+   if((PumpVentilationTimeout) > currentTime+ONE_CYCLE_DELAY )
+   {
+      digitalWrite(REL_3,true);
+   }
+   else if(RunPumpVentilation)
+   {
+     RunPumpVentilation = 0;
+      digitalWrite(REL_3,0);
+   }
 }
 
 void checkPIR()
 {
-      PIRSensor = digitalRead(PIR_SENSOR);
-//   if(digitalRead(PIR_SENSOR))Serial.println("++++++++++++++++++++++++++++");
-//      else Serial.println(" ");
+  PIRSensor = digitalRead(PIR_SENSOR);
 }
 //#define DEBUG
-void loop() 
+void loop()
 {
-      currentTime = millis();
-      checkTimeouts();
-      checkDirection();
-      Get_Data();
-  
-      if(SendTime < currentTime)
-      {
-        checkRange();
-        checkPIR();
-        SendTime = currentTime + 1000/SENDING_FREQUENCY_HZ;
-        #ifndef DEBUG 
-          Send_Data(); 
-        #endif  
-        
-       
-      
-      }
+  currentTime = micros();
+  checkTimeouts();
+  checkDirection();
+  Get_Data();
+  checkRange();
+  FilterRawData();
+  if(!RunPumpVentilation)  CheckHandSensor();
+  PumpVentilation();
+
+
+  if (SendTime < currentTime)
+  {
+
+    checkPIR();
+    SendTime = currentTime + 1000000 / SENDING_FREQUENCY_HZ;
+
+    Left38Raw = Left38Filt;
+    Left56Raw = Left56Filt;
+    Right38Raw = Right38Filt;
+    Right56Raw = Right56Filt;
+    
+#ifndef DEBUG
+   Send_Data();
+#endif
+
+
+    Left38Raw = 0;
+    Left56Raw = 0;
+    Right38Raw = 0;
+    Right56Raw = 0;
+    
+
+//    Serial.print(Left38Filt);
+//    Serial.print(",");
+//    Serial.println(Left56Filt);
+  }
 }

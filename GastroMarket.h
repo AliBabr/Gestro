@@ -13,10 +13,14 @@
 #define SENSOR_38_KHZ_LEFT A2
 #define SENSOR_38_KHZ_RIGHT A3
 
+#define LED_56_KHZ_HAND 6
+#define SENSOR_56_KHZ_HAND A4
+#define BLUE_LED 5
+
 #define PIR_SENSOR 7
 
-#define SENSOR_TIMEOUT 500   //SENSOR_TIMEOUT must be < DELAY_BETWEEN_PERSONS
-#define DELAY_BETWEEN_PERSONS 1000
+#define SENSOR_TIMEOUT 500000   //SENSOR_TIMEOUT must be < DELAY_BETWEEN_PERSONS
+#define DELAY_BETWEEN_PERSONS 1000000
 
 #define SENDING_FREQUENCY_HZ 4
 
@@ -41,5 +45,7 @@ extern byte Right56Raw;
 extern byte BatteryPercentage;
 extern bool PIRSensor;
 extern byte message[20];
-
+extern byte HandSensor;
+extern uint16_t DesinfectantDose;
+extern byte RunPumpVentilation;
 #endif

@@ -27,14 +27,13 @@ void Send_Data()
   message[14] = Right56Raw;                  //raw data from sensor
   message[15] = BatteryPercentage;            //raw voltage dividor battery 
   message[16] = PIRSensor;                    // PIR sensor
+  message[17] = HandSensor;
 
   byte checksumValue = 0;
   for (int i = 2; i < 19; i++)checksumValue ^= message[i];
   message[19] =  checksumValue;    //Checksum
 
  Serial.write(message, sizeof(message));
-
-// Serial.println("01234567890123456789");
 
   Left38Raw = false;
   Left56Raw = false;
@@ -64,7 +63,20 @@ void parseRXData(byte * dataToParse)
          LeftOUTCounter = 0;
          RightINCounter = 0;
          RightOUTCounter = 0;
+         HandSensor = 0;
       }
+      
+      #define MSG_SET_DOSE 1
+      if (input_string[0] == MSG_SET_DOSE) 
+      {
+        DesinfectantDose = input_string[1]*10;
+      }
+      #define MSG_RUN_VENTILATION 2
+      if(input_string[0] = RUN_VENTILATION)
+      {
+        RunPumpVentilation = true;
+      }
+      
 
     }//CHECKSUM RX MESSAGE
   }
