@@ -53,7 +53,8 @@ byte BatteryPercentage = 0;
 
 byte HandSensor = 0;
 byte RunPumpVentilation = 0;
-uint16_t DesinfectantDose = 600; //in millis
+byte FlashBlueLed = 0;
+volatile uint16_t DesinfectantDose = 600; //in millis
 
 
 
@@ -65,22 +66,26 @@ void setup() {
   pinMode(LED_56_KHZ_LEFT, OUTPUT); // TIMER1
   pinMode(LED_56_KHZ_RIGHT, OUTPUT); //TIMER1
 
-  pinMode(LED_56_KHZ_HAND, OUTPUT);
+  // pinMode(LED_56_KHZ_HAND, OUTPUT);
   pinMode(BLUE_LED, OUTPUT);
   pinMode(SENSOR_56_KHZ_HAND, INPUT_PULLUP);
-  
-  pinMode(REL_1, OUTPUT);
-  pinMode(REL_2, OUTPUT);
-  pinMode(REL_3, OUTPUT);
-  pinMode(REL_4, OUTPUT);
 
+  // pinMode(REL_1, OUTPUT);
+  // pinMode(REL_2, OUTPUT);
+  pinMode(REL_3, OUTPUT);
+  //pinMode(REL_4, OUTPUT);
+
+   pinMode(TURN_ON_PIN, OUTPUT);
+  digitalWrite(TURN_ON_PIN, 1);
 
   pinMode(SENSOR_38_KHZ_LEFT, INPUT_PULLUP);
   pinMode(SENSOR_38_KHZ_RIGHT, INPUT_PULLUP);
 
   pinMode(SENSOR_56_KHZ_LEFT, INPUT_PULLUP);
   pinMode(SENSOR_56_KHZ_RIGHT, INPUT_PULLUP);
-  pinMode(PIR_SENSOR, INPUT);
+  pinMode(PIR_SENSOR, INPUT_PULLUP);
+
+  pinMode(TURN_ON_BUTTON, INPUT);
 
   attachPinChangeInterrupt(SENSOR_38_KHZ_LEFT, read38Left, FALLING);
   attachPinChangeInterrupt(SENSOR_38_KHZ_RIGHT, read38Right, FALLING);
@@ -91,6 +96,19 @@ void setup() {
 
   write38();
   write56();
+  
+//starting sequency LED
+  digitalWrite(BLUE_LED, true);
+  delay(200);
+  digitalWrite(BLUE_LED, false);
+  delay(200);
+  digitalWrite(BLUE_LED, true);
+  delay(200);
+  digitalWrite(BLUE_LED, false);
+  delay(200);
+  digitalWrite(BLUE_LED, true);
+  delay(200);
+  digitalWrite(BLUE_LED, false);
 }
 
 void stopTransducer()
@@ -120,7 +138,7 @@ void write56()
   Timer1.initialize(18); //18 us 56 KHz
   Timer1.pwm(LED_56_KHZ_LEFT, 512);
   Timer1.pwm(LED_56_KHZ_RIGHT, 512);
- // Timer1.pwm(LED_56_KHZ_HAND, 512);
+  // Timer1.pwm(LED_56_KHZ_HAND, 512);
 }
 
 void stop56()
@@ -135,7 +153,7 @@ void read38Left()
   if (Sensor38Left == false)
   {
     Sensor38Left = true;
-    Left38FirstHitTime = micros();
+    Left38FirstHitTime = micros64();
     Left38Timeout = Left38FirstHitTime + SENSOR_TIMEOUT;
   }
 }
@@ -146,7 +164,7 @@ void read38Right()
   if (Sensor38Right == false)
   {
     Sensor38Right = true;
-    Right38FirstHitTime = micros();
+    Right38FirstHitTime = micros64();
     Right38Timeout = Right38FirstHitTime + SENSOR_TIMEOUT;
   }
 }
@@ -156,7 +174,7 @@ void read56Left()
   if (Sensor56Left == false)
   {
     Sensor56Left = true;
-    Left56FirstHitTime = micros();
+    Left56FirstHitTime = micros64();
     Left56Timeout = Left56FirstHitTime + SENSOR_TIMEOUT;
   }
 }
@@ -166,13 +184,10 @@ void read56Right()
   if (Sensor56Right == false)
   {
     Sensor56Right = true;
-    Right56FirstHitTime = micros();
+    Right56FirstHitTime = micros64();
     Right56Timeout = Right56FirstHitTime + SENSOR_TIMEOUT;
   }
 }
-
-
-
 
 void checkTimeouts()
 {
@@ -238,6 +253,7 @@ static uint8_t Right38Filt = 0;
 static uint32_t Right56Sum;
 static uint16_t Right56Filt = 0;
 
+
 void checkRange()
 {
   bool left38 = digitalRead(SENSOR_38_KHZ_LEFT);
@@ -273,111 +289,187 @@ void checkRange()
 #define FILTER_POWER 2
 void FilterRawData()
 {
-    Left38Sum = Left38Sum - Left38Filt + Left38Raw;
-    Left38Filt = Left38Sum >> (FILTER_POWER);
-    
-    Left56Sum = Left56Sum - Left56Filt + Left56Raw;
-    Left56Filt = Left56Sum >> (FILTER_POWER);
-    
-    Right38Sum = Right38Sum - Right38Filt + Right38Raw;
-    Right38Filt = Right38Sum >> (FILTER_POWER);
-    
-    Right56Sum = Right56Sum - Right56Filt + Right56Raw;
-    Right56Filt = Right56Sum >> (FILTER_POWER);
+  Left38Sum = Left38Sum - Left38Filt + Left38Raw;
+  Left38Filt = Left38Sum >> (FILTER_POWER);
+
+  Left56Sum = Left56Sum - Left56Filt + Left56Raw;
+  Left56Filt = Left56Sum >> (FILTER_POWER);
+
+  Right38Sum = Right38Sum - Right38Filt + Right38Raw;
+  Right38Filt = Right38Sum >> (FILTER_POWER);
+
+  Right56Sum = Right56Sum - Right56Filt + Right56Raw;
+  Right56Filt = Right56Sum >> (FILTER_POWER);
 }
 
-#define ONE_SEC_USEC 200000
+
 void CheckHandSensor()
 {
-   byte isHand = 0;
-   if(PumpCoolDown < currentTime) //
-   {
-      isHand = !digitalRead(SENSOR_56_KHZ_HAND);
-    
-   }
-   else isHand = 0;
+  unsigned long dose =  (unsigned long)DesinfectantDose ;
+  byte isHand = 0;
+  if (PumpCoolDown < currentTime) //
+  {
+    isHand = !digitalRead(SENSOR_56_KHZ_HAND);
 
-   if(!digitalRead(SENSOR_56_KHZ_HAND) ) PumpCoolDown = currentTime + ONE_SEC_USEC;
-   
-   if(isHand && PumpTimeout < currentTime)
-   {
-     PumpTimeout = currentTime + 600000;//(DesinfectantDose*1000);
-   }
+  }
+  else isHand = 0;
 
-   if(PumpTimeout > currentTime)
-   {
-     digitalWrite(REL_3,true);
-     //PumpCoolDown = currentTime + ONE_SEC_USEC;
-     digitalWrite(BLUE_LED,true);
-     HandSensor = true;
-   }
-   else
-   {
-     digitalWrite(REL_3,false);
-     digitalWrite(BLUE_LED,false);
-   }
+  if (!digitalRead(SENSOR_56_KHZ_HAND) ) PumpCoolDown = currentTime + PUMP_COOLDOWN;
+
+  if (isHand && PumpTimeout < currentTime)
+  {
+    HandSensor = true;
+    PumpTimeout = currentTime + dose;
+  }
+
+  if (PumpTimeout > currentTime)
+  {
+    digitalWrite(REL_3, true);
+    //PumpCoolDown = currentTime + ONE_SEC_USEC;
+    digitalWrite(BLUE_LED, true);
+  }
+  else
+  {
+    digitalWrite(REL_3, false);
+    if (!FlashBlueLed)  digitalWrite(BLUE_LED, false);
+  }
 }
-#define VENTILATION_TIME 12000000 //12sec
-#define ONE_CYCLE_DELAY 100000
-void PumpVentilation()
-{
-   if(RunPumpVentilation && (PumpVentilationTimeout < currentTime))
-   {
-    PumpVentilationTimeout = currentTime + VENTILATION_TIME;
-   }
 
-   if((PumpVentilationTimeout) > currentTime+ONE_CYCLE_DELAY )
-   {
-      digitalWrite(REL_3,true);
-   }
-   else if(RunPumpVentilation)
-   {
-     RunPumpVentilation = 0;
-      digitalWrite(REL_3,0);
-   }
+void ControlBlueLed(uint8_t state)
+{
+  digitalWrite(BLUE_LED, state);
+}
+
+#define VENTILATION_TIME 5000 //300
+#define ONE_CYCLE_DELAY 100
+void PumpVentilation(uint8_t state)
+{
+
+  if (RunPumpVentilation)
+  {
+    digitalWrite(REL_3, state);
+  }
+  else digitalWrite(REL_3, state);
+  //   if(RunPumpVentilation && (PumpVentilationTimeout < currentTime))
+  //   {
+  //    PumpVentilationTimeout = currentTime + VENTILATION_TIME;
+  //   }
+  //
+  //   if((PumpVentilationTimeout) > currentTime+ONE_CYCLE_DELAY )
+  //   {
+  //      digitalWrite(REL_3,true);
+  //   }
+  //   else if(RunPumpVentilation)
+  //   {
+  //     RunPumpVentilation = 0;
+  //      digitalWrite(REL_3,0);
+  //   }
+}
+
+static uint32_t BatterySum = FULL;
+static uint16_t BatteryFilt = FULL;
+void BatteryCheck()
+{
+  static int lowVoltageCounter = 0;
+  double batteryRaw = analogRead(BATTERY_SENSOR);
+  uint16_t rawBatteryPercentage = 0;
+  rawBatteryPercentage = (uint16_t)(((batteryRaw-EMPTY)/(FULL-EMPTY))*100)*10;
+  
+  BatterySum = BatterySum - BatteryFilt + rawBatteryPercentage;
+  BatteryFilt = BatterySum >> (5);
+
+  BatteryPercentage = (byte)(BatteryFilt/10.0);
+  if(batteryRaw <=EMPTY)
+  {
+    lowVoltageCounter++;
+  }
+  else lowVoltageCounter = 0;
+  if(lowVoltageCounter > 5000)
+  {
+     digitalWrite(TURN_ON_PIN, 0);
+     delay(1000);
+  } 
+}
+
+void TurnOffCheck()
+{
+  volatile int  turn_off_cycle = 0;
+  while (!digitalRead(TURN_ON_BUTTON))
+  {  digitalWrite(BLUE_LED, true);
+   
+    turn_off_cycle++;
+    delay(50);
+    if (turn_off_cycle > 40) //2second hold button
+      //int bootload_start_LED = 0;
+     
+      while (1)
+      {
+        delay(10);
+
+        digitalWrite(BLUE_LED, false);
+        if (digitalRead(TURN_ON_BUTTON))
+        {
+        
+          
+          delay(100);
+          digitalWrite(TURN_ON_PIN, LOW);
+          
+        }
+
+        //delay(50);
+      }
+  }
 }
 
 void checkPIR()
 {
   PIRSensor = digitalRead(PIR_SENSOR);
 }
+
+uint64_t micros64() {
+  static uint32_t low32, high32;
+  uint32_t new_low32 = micros();
+  if (new_low32 < low32) high32++;
+  low32 = new_low32;
+  return (uint64_t) high32 << 32 | low32;
+}
 //#define DEBUG
 void loop()
 {
-  currentTime = micros();
+  currentTime = millis();
   checkTimeouts();
   checkDirection();
   Get_Data();
   checkRange();
   FilterRawData();
-  if(!RunPumpVentilation)  CheckHandSensor();
-  PumpVentilation();
+  if (!RunPumpVentilation) CheckHandSensor();
+  // PumpVentilation();
 
+  BatteryCheck();
+  TurnOffCheck();
 
   if (SendTime < currentTime)
   {
-
     checkPIR();
-    SendTime = currentTime + 1000000 / SENDING_FREQUENCY_HZ;
+    SendTime = currentTime + 1000 / SENDING_FREQUENCY_HZ;
 
     Left38Raw = Left38Filt;
     Left56Raw = Left56Filt;
     Right38Raw = Right38Filt;
     Right56Raw = Right56Filt;
-    
+
 #ifndef DEBUG
    Send_Data();
 #endif
-
 
     Left38Raw = 0;
     Left56Raw = 0;
     Right38Raw = 0;
     Right56Raw = 0;
-    
+    HandSensor = 0;
 
-//    Serial.print(Left38Filt);
-//    Serial.print(",");
-//    Serial.println(Left56Filt);
+//       Serial.print(Left38Filt);
+//       Serial.print(",");
+//       Serial.println(Left56Filt);
   }
 }

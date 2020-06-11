@@ -25,15 +25,15 @@ void Send_Data()
   message[12] = Left56Raw;                   //raw data from sensor
   message[13] = Right38Raw;                  //raw data from sensor
   message[14] = Right56Raw;                  //raw data from sensor
-  message[15] = BatteryPercentage;            //raw voltage dividor battery 
+  message[15] = BatteryPercentage;            //raw voltage divider battery
   message[16] = PIRSensor;                    // PIR sensor
-  message[17] = HandSensor;
+  message[17] = HandSensor; //Hand sensor
 
   byte checksumValue = 0;
   for (int i = 2; i < 19; i++)checksumValue ^= message[i];
   message[19] =  checksumValue;    //Checksum
 
- Serial.write(message, sizeof(message));
+  Serial.write(message, sizeof(message));
 
   Left38Raw = false;
   Left56Raw = false;
@@ -56,27 +56,36 @@ void parseRXData(byte * dataToParse)
     ///==================- CHECKSUM RX OK -==================================
     if (input_string[17] == checksumValue)
     {
-      #define RESET_MSG 0
+#define RESET_MSG 0
       if (input_string[0] == RESET_MSG) //reset counters
       {
-         LeftINCounter = 0;
-         LeftOUTCounter = 0;
-         RightINCounter = 0;
-         RightOUTCounter = 0;
-         HandSensor = 0;
+        LeftINCounter = 0;
+        LeftOUTCounter = 0;
+        RightINCounter = 0;
+        RightOUTCounter = 0;
+        HandSensor = 0;
       }
-      
-      #define MSG_SET_DOSE 1
-      if (input_string[0] == MSG_SET_DOSE) 
+
+#define MSG_SET_DOSE 1
+      if (input_string[0] == MSG_SET_DOSE)
       {
-        DesinfectantDose = input_string[1]*10;
+        DesinfectantDose = input_string[1] * 100; //[ms]
+       
       }
-      #define MSG_RUN_VENTILATION 2
-      if(input_string[0] = RUN_VENTILATION)
+#define MSG_RUN_VENTILATION 2
+      if (input_string[0] == MSG_RUN_VENTILATION)
       {
-        RunPumpVentilation = true;
+        byte on = input_string[1];
+        RunPumpVentilation = on;
+        PumpVentilation(on);
       }
-      
+#define MSG_BLUE_LED 3
+      if (input_string[0] == MSG_BLUE_LED)
+      {
+        byte on = input_string[1];
+        FlashBlueLed = on;
+        ControlBlueLed(on);
+      }
 
     }//CHECKSUM RX MESSAGE
   }
@@ -90,7 +99,7 @@ void Get_Data()
   {
     byte readBuffer[20] = {0};
 
-    if (Serial.find("$<")) 
+    if (Serial.find("$<"))
     {
       Serial.readBytes(readBuffer, 18);
       parseRXData(readBuffer);
