@@ -2,6 +2,9 @@
 #include "GastroMarket.h"
 #include "messaging.h"
 #include <TimerOne.h>
+#include <AceButton.h>
+#include  "thermometer.h"
+using namespace ace_button;
 
 bool Sensor38Left = 0;
 bool Sensor38Right = 0;
@@ -41,7 +44,6 @@ uint64_t PumpTimeout = 0;
 uint64_t PumpCoolDown = 0;
 uint64_t PumpVentilationTimeout = 0;
 
-
 uint64_t SendTime = 0;
 
 byte Left38Raw = 0;
@@ -54,9 +56,21 @@ byte BatteryPercentage = 0;
 byte HandSensor = 0;
 byte RunPumpVentilation = 0;
 byte FlashBlueLed = 0;
-volatile uint16_t DesinfectantDose = 600; //in millis
+volatile uint16_t DesinfectantDose = 400; //in millis
 
+bool ignoreLeftSensor = false;
+bool ignoreRightSensor = false;
 
+bool buttonPressed = false;
+
+bool sleepMode = false;
+
+byte SonarDistance = 0;
+uint16_t object_temperature = 0;
+byte ambient_temperature = 0;
+
+void handleEvent(AceButton*, uint8_t, uint8_t);
+AceButton button(BUTTON_PIN);
 
 void setup() {
   // put your setup code here, to run once:
@@ -70,12 +84,16 @@ void setup() {
   pinMode(BLUE_LED, OUTPUT);
   pinMode(SENSOR_56_KHZ_HAND, INPUT_PULLUP);
 
-  // pinMode(REL_1, OUTPUT);
-  // pinMode(REL_2, OUTPUT);
+  //pinMode(REL_1, OUTPUT);
+  //pinMode(REL_2, OUTPUT);
   pinMode(REL_3, OUTPUT);
   //pinMode(REL_4, OUTPUT);
 
-   pinMode(TURN_ON_PIN, OUTPUT);
+  pinMode(TURN_ON_PIN, OUTPUT);
+  pinMode(RED_LED_HAND, OUTPUT);  
+  pinMode(RED_LED_TEMP, OUTPUT);
+  pinMode(CHARGING_ON, OUTPUT);
+  
   digitalWrite(TURN_ON_PIN, 1);
 
   pinMode(SENSOR_38_KHZ_LEFT, INPUT_PULLUP);
@@ -83,9 +101,34 @@ void setup() {
 
   pinMode(SENSOR_56_KHZ_LEFT, INPUT_PULLUP);
   pinMode(SENSOR_56_KHZ_RIGHT, INPUT_PULLUP);
-  pinMode(PIR_SENSOR, INPUT_PULLUP);
+  //pinMode(PIR_SENSOR, INPUT_PULLUP);
 
-  pinMode(TURN_ON_BUTTON, INPUT);
+
+  //pinMode(TURN_ON_BUTTON, INPUT);
+   // Button uses the built-in pull up register.
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+ thermometer_setup();
+
+#ifndef DEBUG
+  for(int i = 0; i < 20;i++)
+  {
+     BatteryCheck();
+  }
+#endif
+
+  digitalWrite(CHARGING_ON, 1);
+
+// Configure the ButtonConfig with the event handler, and enable all higher
+  // level events.
+  ButtonConfig* buttonConfig = button.getButtonConfig();
+  buttonConfig->setEventHandler(handleEvent);
+  buttonConfig->setFeature(ButtonConfig::kFeatureClick);
+  buttonConfig->setFeature(ButtonConfig::kFeatureDoubleClick);
+  buttonConfig->setFeature(ButtonConfig::kFeatureLongPress);
+  buttonConfig->setFeature(ButtonConfig::kFeatureRepeatPress);
+  buttonConfig->setLongPressDelay(2000);
+
 
   attachPinChangeInterrupt(SENSOR_38_KHZ_LEFT, read38Left, FALLING);
   attachPinChangeInterrupt(SENSOR_38_KHZ_RIGHT, read38Right, FALLING);
@@ -109,6 +152,8 @@ void setup() {
   digitalWrite(BLUE_LED, true);
   delay(200);
   digitalWrite(BLUE_LED, false);
+
+
 }
 
 void stopTransducer()
@@ -134,7 +179,6 @@ void stop38()
 
 void write56()
 {
-
   Timer1.initialize(18); //18 us 56 KHz
   Timer1.pwm(LED_56_KHZ_LEFT, 512);
   Timer1.pwm(LED_56_KHZ_RIGHT, 512);
@@ -148,6 +192,7 @@ void stop56()
 
 
 
+
 void read38Left()
 {
   if (Sensor38Left == false)
@@ -157,7 +202,6 @@ void read38Left()
     Left38Timeout = Left38FirstHitTime + SENSOR_TIMEOUT;
   }
 }
-
 
 void read38Right()
 {
@@ -219,7 +263,6 @@ void checkTimeouts()
   {
     Sensor38Left = false;
     Sensor56Left = false;
-
   }
 }
 
@@ -228,15 +271,23 @@ void checkDirection()
 {
   if (Sensor38Left && Sensor56Left && (LeftPersonTimeout < currentTime))
   {
-    if (Left38FirstHitTime > Left56FirstHitTime) LeftINCounter++;
-    else LeftOUTCounter++;
+    if(!ignoreLeftSensor)
+    {
+      if (Left38FirstHitTime > Left56FirstHitTime) LeftINCounter++;
+      else LeftOUTCounter++;
+    }
+   
     LeftPersonTimeout = currentTime + DELAY_BETWEEN_PERSONS;
   }
 
   if (Sensor38Right && Sensor56Right && (RightPersonTimeout < currentTime))
   {
-    if (Right38FirstHitTime > Right56FirstHitTime) RightINCounter++;
-    else RightOUTCounter++;
+    if(!ignoreRightSensor)
+    {
+      if (Right38FirstHitTime > Right56FirstHitTime) RightINCounter++;
+      else RightOUTCounter++;
+    }
+  
     RightPersonTimeout = currentTime + DELAY_BETWEEN_PERSONS;
   }
 }
@@ -264,27 +315,25 @@ void checkRange()
 
   if (!left38)
   {
-    if (Left38Raw <= 255) Left38Raw++;
+    if (Left38Raw < 15) Left38Raw++;
   }
 
   if (!left56)
   {
-    if (Left56Raw <= 255) Left56Raw++;
+    if (Left56Raw < 15) Left56Raw++;
   }
 
   if (!right38)
   {
-    if (Right38Raw <= 255) Right38Raw++;
+    if (Right38Raw < 15) Right38Raw++;
   }
 
   if (!right56)
   {
-    if (Right56Raw <= 255) Right56Raw++;
+    if (Right56Raw < 15) Right56Raw++;
   }
-
-
-
 }
+
 
 #define FILTER_POWER 2
 void FilterRawData()
@@ -340,30 +389,25 @@ void ControlBlueLed(uint8_t state)
   digitalWrite(BLUE_LED, state);
 }
 
+void ControlRedLedTemp(uint8_t state)
+{
+  digitalWrite(RED_LED_TEMP, state);
+}
+void ControlRedInfoHand(uint8_t state)
+{
+  digitalWrite(RED_LED_HAND, state);
+}
+
+
 #define VENTILATION_TIME 5000 //300
 #define ONE_CYCLE_DELAY 100
 void PumpVentilation(uint8_t state)
 {
-
   if (RunPumpVentilation)
   {
     digitalWrite(REL_3, state);
   }
   else digitalWrite(REL_3, state);
-  //   if(RunPumpVentilation && (PumpVentilationTimeout < currentTime))
-  //   {
-  //    PumpVentilationTimeout = currentTime + VENTILATION_TIME;
-  //   }
-  //
-  //   if((PumpVentilationTimeout) > currentTime+ONE_CYCLE_DELAY )
-  //   {
-  //      digitalWrite(REL_3,true);
-  //   }
-  //   else if(RunPumpVentilation)
-  //   {
-  //     RunPumpVentilation = 0;
-  //      digitalWrite(REL_3,0);
-  //   }
 }
 
 static uint32_t BatterySum = FULL;
@@ -386,44 +430,119 @@ void BatteryCheck()
   else lowVoltageCounter = 0;
   if(lowVoltageCounter > 5000)
   {
+      EmptyBatteryWarningAnimation();
      digitalWrite(TURN_ON_PIN, 0);
      delay(1000);
   } 
 }
 
-void TurnOffCheck()
+void EmptyBatteryWarningAnimation()
 {
-  volatile int  turn_off_cycle = 0;
-  while (!digitalRead(TURN_ON_BUTTON))
-  {  digitalWrite(BLUE_LED, true);
+    digitalWrite(RED_LED_HAND, 1);
+    delay(200);
+    digitalWrite(RED_LED_HAND, 0);
+    delay(200);
+     digitalWrite(RED_LED_HAND, 1);
+    delay(200);
+    digitalWrite(RED_LED_HAND, 0);
+    delay(200);
+    digitalWrite(RED_LED_HAND, 1);
+    delay(200);
+    digitalWrite(RED_LED_HAND, 0);
+    delay(200);
+    digitalWrite(RED_LED_HAND, 1);
+    delay(200);
+    digitalWrite(RED_LED_HAND, 0);
+    delay(200);
+}
+
+
+
+//void TurnOffCheck()
+//{
+//  volatile int  turn_off_cycle = 0;
+//  while (!digitalRead(TURN_ON_BUTTON))
+//  {  digitalWrite(BLUE_LED, true);
+//   
+//    //buttonPressed = true;
+//    
+//    turn_off_cycle++;
+//    delay(50);
+////    if(turn_off_cycle > 40)
+////    {
+////       if (digitalRead(TURN_ON_BUTTON))
+////        {
+////           if(sleepMode) sleepMode = true;
+////           else sleepMode = false;
+////           digitalWrite(BLUE_LED, false);
+////        }
+////     
+////    }
+//    if (turn_off_cycle > 90) //5second hold button
+//      //int bootload_start_LED = 0;
+//      digitalWrite(BLUE_LED, true);
+//      while (1)
+//      {
+//        delay(10);
+//        if (digitalRead(TURN_ON_BUTTON))
+//        {
+//          delay(100);
+//          digitalWrite(BLUE_LED, false);
+//          digitalWrite(TURN_ON_PIN, LOW);
+//        }
+//        //delay(50);
+//      }
+//  }
+//}
+
+// The event handler for the button.
+void handleEvent(AceButton* /* button */, uint8_t eventType,
+    uint8_t buttonState) {
+
+
+  // Control the LED only for the Pressed and Released events.
+  // Notice that if the MCU is rebooted while the button is pressed down, no
+  // event is triggered and the LED remains off.
+  switch (eventType) {
+    case AceButton::kEventPressed:
+      digitalWrite(BLUE_LED, true);
+      FlashBlueLed = true;
+      break;
+    case AceButton::kEventReleased:
    
-    turn_off_cycle++;
-    delay(50);
-    if (turn_off_cycle > 40) //2second hold button
-      //int bootload_start_LED = 0;
-     
-      while (1)
-      {
-        delay(10);
-
-        digitalWrite(BLUE_LED, false);
-        if (digitalRead(TURN_ON_BUTTON))
-        {
-        
-          
-          delay(100);
-          digitalWrite(TURN_ON_PIN, LOW);
-          
-        }
-
-        //delay(50);
-      }
+     FlashBlueLed = false;
+      break;
+     case AceButton::kEventDoubleClicked:
+        buttonPressed = true;
+     break;
+     case AceButton::kEventLongPressed:
+       delay(100);
+      digitalWrite(BLUE_LED, false);
+        delay(100);
+      digitalWrite(TURN_ON_PIN, LOW);
+      break;
   }
 }
 
-void checkPIR()
+
+static uint32_t SonarSum;
+static uint64_t SonarFilt = 0;
+
+#define FILTER_POWER_SONAR 2
+#define MAX_RANG (502.0) //cm
+#define  ADC_SOLUTION      (1023.0)//ADC accuracy of Arduino UNO is 10bit
+
+void checkSonar()
 {
-  PIRSensor = digitalRead(PIR_SENSOR);
+  //read the value from the sensor:
+ uint32_t sensity_t = analogRead(SENSOR_SONAR);
+
+  SonarSum = SonarSum - SonarFilt + sensity_t;
+  SonarFilt = SonarSum >> (FILTER_POWER_SONAR);
+
+  SonarDistance = (byte)(((sensity_t * MAX_RANG)/ADC_SOLUTION)/2.0);
+
+ 
 }
 
 uint64_t micros64() {
@@ -437,39 +556,42 @@ uint64_t micros64() {
 void loop()
 {
   currentTime = millis();
-  checkTimeouts();
-  checkDirection();
-  Get_Data();
-  checkRange();
-  FilterRawData();
-  if (!RunPumpVentilation) CheckHandSensor();
-  // PumpVentilation();
 
-  BatteryCheck();
-  TurnOffCheck();
-
-  if (SendTime < currentTime)
+  if(!sleepMode)
   {
-    checkPIR();
-    SendTime = currentTime + 1000 / SENDING_FREQUENCY_HZ;
-
-    Left38Raw = Left38Filt;
-    Left56Raw = Left56Filt;
-    Right38Raw = Right38Filt;
-    Right56Raw = Right56Filt;
-
-#ifndef DEBUG
-   Send_Data();
-#endif
-
-    Left38Raw = 0;
-    Left56Raw = 0;
-    Right38Raw = 0;
-    Right56Raw = 0;
-    HandSensor = 0;
-
-//       Serial.print(Left38Filt);
-//       Serial.print(",");
-//       Serial.println(Left56Filt);
-  }
+    checkTimeouts();
+    checkDirection();
+    Get_Data();
+    checkRange();
+    FilterRawData();
+    if (!RunPumpVentilation) CheckHandSensor();
+    // PumpVentilation();
+    
+    if (SendTime < currentTime)
+    {
+      //checkPIR();
+      checkSonar();
+      measure_temperature();
+      SendTime = currentTime + 1000 / SENDING_FREQUENCY_HZ;
+  
+      Left38Raw = Left38Filt;
+      Left56Raw = Left56Filt;
+      Right38Raw = Right38Filt;
+      Right56Raw = Right56Filt;
+  
+  #ifndef DEBUG
+     Send_Data();
+  #endif
+  
+      Left38Raw = 0;
+      Left56Raw = 0;
+      Right38Raw = 0;
+      Right56Raw = 0;
+      HandSensor = 0;
+    }
+  }// if not in sleep mode
+  
+    BatteryCheck();
+   // TurnOffCheck();
+    button.check();
 }

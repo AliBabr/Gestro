@@ -2,13 +2,16 @@
 #include <arduino.h>
 #include "GastroMarket.h"
 
-byte message[20];
+byte message[20] = {0};
+
+#define BUTTON_PRESSED 0
+#define HAND_SENSOR 1
+
 
 void Send_Data()
 {
   //Sending data to smartphone
 #define STANDARD_MESSAGE 1
-
 
   message[0] = '$';
   message[1] = '>';
@@ -21,13 +24,18 @@ void Send_Data()
   message[8] = (RightINCounter >> 8) & 0xFF;           //Person counter IN right side
   message[9] = (RightOUTCounter) & 0xFF;          //Person counter OUT right side
   message[10] = (RightOUTCounter >> 8) & 0xFF;         //Person counter OUT right side
-  message[11] = Left38Raw;                   //raw data from sensor
-  message[12] = Left56Raw;                   //raw data from sensor
-  message[13] = Right38Raw;                  //raw data from sensor
-  message[14] = Right56Raw;                  //raw data from sensor
+  message[11] = (byte)(Left38Raw | (Left56Raw << 4));
+  message[12] = (byte)(Right38Raw | (Right56Raw << 4));
+  
+ if(buttonPressed) message[13] |= 1 << BUTTON_PRESSED; 
+ else message[13] &= ~(1 << BUTTON_PRESSED);
+ if(HandSensor) message[13] |= 1 << HAND_SENSOR; 
+ else message[13] &= ~(1 << HAND_SENSOR);
+  message[14] = ambient_temperature;
   message[15] = BatteryPercentage;            //raw voltage divider battery
-  message[16] = PIRSensor;                    // PIR sensor
-  message[17] = HandSensor; //Hand sensor
+  message[16] = SonarDistance;                    //Sonar Distance in cm divided by 10
+  message[17] = (object_temperature) & 0xFF;
+  message[18] = (object_temperature >> 8) & 0xFF; 
 
   byte checksumValue = 0;
   for (int i = 2; i < 19; i++)checksumValue ^= message[i];
@@ -39,6 +47,7 @@ void Send_Data()
   Left56Raw = false;
   Right38Raw = false;
   Right56Raw = false;
+  buttonPressed = false;
 }
 
 
@@ -69,7 +78,7 @@ void parseRXData(byte * dataToParse)
 #define MSG_SET_DOSE 1
       if (input_string[0] == MSG_SET_DOSE)
       {
-        DesinfectantDose = input_string[1] * 100; //[ms]
+        DesinfectantDose = input_string[1]*48; // 1ml is 480ms of pump run
        
       }
 #define MSG_RUN_VENTILATION 2
@@ -86,6 +95,30 @@ void parseRXData(byte * dataToParse)
         FlashBlueLed = on;
         ControlBlueLed(on);
       }
+#define MSG_IGNORE_SENSOR 4
+
+ if (input_string[0] == MSG_IGNORE_SENSOR)
+      {
+         ignoreRightSensor = input_string[1];
+         ignoreLeftSensor = input_string[2];
+      }
+
+#define MSG_RED_TEMP_LED 5 
+
+      if (input_string[0] == MSG_RED_TEMP_LED)
+      {
+        byte on = input_string[1];
+        ControlRedLedTemp(on);
+      }
+
+#define MSG_RED_INFO_LED 6
+
+      if (input_string[0] == MSG_RED_INFO_LED)
+      {
+        byte on = input_string[1];
+        ControlRedInfoHand(on);
+      }
+
 
     }//CHECKSUM RX MESSAGE
   }
