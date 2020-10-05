@@ -6,6 +6,7 @@ byte message[20] = {0};
 
 #define BUTTON_PRESSED 0
 #define HAND_SENSOR 1
+#define TURNING_OFF 2
 
 
 void Send_Data()
@@ -31,6 +32,8 @@ void Send_Data()
  else message[13] &= ~(1 << BUTTON_PRESSED);
  if(HandSensor) message[13] |= 1 << HAND_SENSOR; 
  else message[13] &= ~(1 << HAND_SENSOR);
+ if(turningOff)  message[13] |= 1 << TURNING_OFF; 
+ else  message[13] &= ~(1 << TURNING_OFF);
   message[14] = ambient_temperature;
   message[15] = BatteryPercentage;            //raw voltage divider battery
   message[16] = SonarDistance;                    //Sonar Distance in cm divided by 10
@@ -99,8 +102,8 @@ void parseRXData(byte * dataToParse)
 
  if (input_string[0] == MSG_IGNORE_SENSOR)
       {
-         ignoreRightSensor = input_string[1];
-         ignoreLeftSensor = input_string[2];
+         RightSensorEnabled = input_string[1];
+         LeftSensorEnabled = input_string[2];
       }
 
 #define MSG_RED_TEMP_LED 5 
@@ -117,6 +120,12 @@ void parseRXData(byte * dataToParse)
       {
         byte on = input_string[1];
         ControlRedInfoHand(on);
+      }
+#define MSG_SERVICE_ENTER 7
+
+      if (input_string[0] == MSG_SERVICE_ENTER)
+      {
+        serviceEnter = input_string[1];
       }
 
 

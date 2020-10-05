@@ -71,14 +71,17 @@ extern byte FlashBlueLed;
 
 extern bool sleepMode;
 
-extern bool ignoreLeftSensor;
-extern bool ignoreRightSensor;
+extern bool LeftSensorEnabled;
+extern bool RightSensorEnabled;
 
 extern bool buttonPressed;
+extern bool turningOff;
 
 extern uint16_t object_temperature;
 
 extern byte ambient_temperature;
+
+extern bool serviceEnter;
 
 
 void ControlBlueLed(uint8_t state);

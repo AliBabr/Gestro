@@ -58,12 +58,15 @@ byte RunPumpVentilation = 0;
 byte FlashBlueLed = 0;
 volatile uint16_t DesinfectantDose = 400; //in millis
 
-bool ignoreLeftSensor = false;
-bool ignoreRightSensor = false;
+bool LeftSensorEnabled = true;
+bool RightSensorEnabled = true;
 
 bool buttonPressed = false;
+bool turningOff = false;
 
 bool sleepMode = false;
+
+bool serviceEnter = false;
 
 byte SonarDistance = 0;
 uint16_t object_temperature = 0;
@@ -271,23 +274,35 @@ void checkDirection()
 {
   if (Sensor38Left && Sensor56Left && (LeftPersonTimeout < currentTime))
   {
-    if(!ignoreLeftSensor)
+
+    if(LeftSensorEnabled)
     {
-      if (Left38FirstHitTime > Left56FirstHitTime) LeftINCounter++;
-      else LeftOUTCounter++;
+      if(!serviceEnter)
+      {
+        if (Left38FirstHitTime > Left56FirstHitTime) LeftINCounter++;
+        else LeftOUTCounter++;
+      }
+      
     }
-   
+    serviceEnter = false;
+ 
     LeftPersonTimeout = currentTime + DELAY_BETWEEN_PERSONS;
   }
 
   if (Sensor38Right && Sensor56Right && (RightPersonTimeout < currentTime))
   {
-    if(!ignoreRightSensor)
+    if(RightSensorEnabled)
     {
-      if (Right38FirstHitTime > Right56FirstHitTime) RightINCounter++;
-      else RightOUTCounter++;
+      if(!serviceEnter)
+      {
+        if (Right38FirstHitTime > Right56FirstHitTime) RightINCounter++;
+        else RightOUTCounter++;
+      }
+      
     }
-  
+
+    serviceEnter = false;
+    
     RightPersonTimeout = currentTime + DELAY_BETWEEN_PERSONS;
   }
 }
@@ -509,18 +524,26 @@ void handleEvent(AceButton* /* button */, uint8_t eventType,
       FlashBlueLed = true;
       break;
     case AceButton::kEventReleased:
-   
-     FlashBlueLed = false;
+         buttonPressed = true;
+         FlashBlueLed = false;
       break;
      case AceButton::kEventDoubleClicked:
         buttonPressed = true;
      break;
      case AceButton::kEventLongPressed:
-       delay(100);
-      digitalWrite(BLUE_LED, false);
-        delay(100);
-      digitalWrite(TURN_ON_PIN, LOW);
+
+             if(turningOff == false)
+             {
+                turningOff = true;
+                Send_Data();
+             }
+            
+            delay(100);
+            digitalWrite(BLUE_LED, false);
+            delay(100);
+            digitalWrite(TURN_ON_PIN, LOW);
       break;
+
   }
 }
 
@@ -580,7 +603,7 @@ void loop()
       Right56Raw = Right56Filt;
   
   #ifndef DEBUG
-     Send_Data();
+    if(!turningOff) Send_Data();
   #endif
   
       Left38Raw = 0;
