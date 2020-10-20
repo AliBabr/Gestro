@@ -4,6 +4,7 @@
 #include <TimerOne.h>
 #include <AceButton.h>
 #include  "thermometer.h"
+#include "led.h"
 using namespace ace_button;
 
 bool Sensor38Left = 0;
@@ -112,6 +113,7 @@ void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
  thermometer_setup();
+ //LEDsSetup();
 
 #ifndef DEBUG
   for(int i = 0; i < 20;i++)
@@ -156,7 +158,6 @@ void setup() {
   delay(200);
   digitalWrite(BLUE_LED, false);
 
-
 }
 
 void stopTransducer()
@@ -192,9 +193,6 @@ void stop56()
 {
 
 }
-
-
-
 
 void read38Left()
 {
@@ -435,7 +433,7 @@ void BatteryCheck()
   rawBatteryPercentage = (uint16_t)(((batteryRaw-EMPTY)/(FULL-EMPTY))*100)*10;
   
   BatterySum = BatterySum - BatteryFilt + rawBatteryPercentage;
-  BatteryFilt = BatterySum >> (5);
+  BatteryFilt = BatterySum >> (3);
 
   BatteryPercentage = (byte)(BatteryFilt/10.0);
   if(batteryRaw <=EMPTY)
@@ -443,7 +441,7 @@ void BatteryCheck()
     lowVoltageCounter++;
   }
   else lowVoltageCounter = 0;
-  if(lowVoltageCounter > 5000)
+  if(lowVoltageCounter > 40)
   {
       EmptyBatteryWarningAnimation();
      digitalWrite(TURN_ON_PIN, 0);
@@ -471,44 +469,6 @@ void EmptyBatteryWarningAnimation()
     delay(200);
 }
 
-
-
-//void TurnOffCheck()
-//{
-//  volatile int  turn_off_cycle = 0;
-//  while (!digitalRead(TURN_ON_BUTTON))
-//  {  digitalWrite(BLUE_LED, true);
-//   
-//    //buttonPressed = true;
-//    
-//    turn_off_cycle++;
-//    delay(50);
-////    if(turn_off_cycle > 40)
-////    {
-////       if (digitalRead(TURN_ON_BUTTON))
-////        {
-////           if(sleepMode) sleepMode = true;
-////           else sleepMode = false;
-////           digitalWrite(BLUE_LED, false);
-////        }
-////     
-////    }
-//    if (turn_off_cycle > 90) //5second hold button
-//      //int bootload_start_LED = 0;
-//      digitalWrite(BLUE_LED, true);
-//      while (1)
-//      {
-//        delay(10);
-//        if (digitalRead(TURN_ON_BUTTON))
-//        {
-//          delay(100);
-//          digitalWrite(BLUE_LED, false);
-//          digitalWrite(TURN_ON_PIN, LOW);
-//        }
-//        //delay(50);
-//      }
-//  }
-//}
 
 // The event handler for the button.
 void handleEvent(AceButton* /* button */, uint8_t eventType,
@@ -551,21 +511,19 @@ void handleEvent(AceButton* /* button */, uint8_t eventType,
 static uint32_t SonarSum;
 static uint64_t SonarFilt = 0;
 
-#define FILTER_POWER_SONAR 2
+#define FILTER_POWER_SONAR 8
 #define MAX_RANG (502.0) //cm
 #define  ADC_SOLUTION      (1023.0)//ADC accuracy of Arduino UNO is 10bit
 
 void checkSonar()
 {
   //read the value from the sensor:
- uint32_t sensity_t = analogRead(SENSOR_SONAR);
+  uint16_t sensity_t = analogRead(SENSOR_SONAR);
 
+  if(sensity_t>407) sensity_t = 407;
   SonarSum = SonarSum - SonarFilt + sensity_t;
   SonarFilt = SonarSum >> (FILTER_POWER_SONAR);
-
-  SonarDistance = (byte)(((sensity_t * MAX_RANG)/ADC_SOLUTION)/2.0);
-
- 
+  SonarDistance = (byte)(((SonarFilt * MAX_RANG)/ADC_SOLUTION)/2.0);
 }
 
 uint64_t micros64() {
@@ -587,13 +545,13 @@ void loop()
     Get_Data();
     checkRange();
     FilterRawData();
+    checkSonar();
     if (!RunPumpVentilation) CheckHandSensor();
-    // PumpVentilation();
-    
+
     if (SendTime < currentTime)
     {
-      //checkPIR();
-      checkSonar();
+      BatteryCheck();
+
       measure_temperature();
       SendTime = currentTime + 1000 / SENDING_FREQUENCY_HZ;
   
@@ -601,6 +559,8 @@ void loop()
       Left56Raw = Left56Filt;
       Right38Raw = Right38Filt;
       Right56Raw = Right56Filt;
+
+     // SetLEDs();  
   
   #ifndef DEBUG
     if(!turningOff) Send_Data();
@@ -613,8 +573,8 @@ void loop()
       HandSensor = 0;
     }
   }// if not in sleep mode
+
+   
   
-    BatteryCheck();
-   // TurnOffCheck();
     button.check();
 }
