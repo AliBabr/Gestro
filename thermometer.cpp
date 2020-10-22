@@ -6,7 +6,7 @@
 #include  "GastroMarket.h"
 
 //IRTherm therm; // Create an IRTherm object to interact with throughout
-#define BODY_EMISIVITY 0.98
+#define BODY_EMISIVITY 0.98 //Body emisivity of human skin
 
 Adafruit_MLX90614 mlx = Adafruit_MLX90614();
 
@@ -25,7 +25,6 @@ void thermometer_setup() {
 double tempObjectC = 0;
 double tempAmbientC = 0;
 
-
 void measure_temperature() {
 
 //  if (therm.read()) // On success, read() will return 1, on fail 0.
@@ -41,11 +40,11 @@ void measure_temperature() {
 //  }
 
 
-    tempObjectC = mlx.readObjectTempC() - (3.21 - 3) * 0.6; //supply voltage compensation
+    tempObjectC = mlx.readObjectTempC() - (3.21 - 3) * 0.6; //supply voltage compensation according datasheet of MLX90614(3.21V measured on voltage stabilisator on thermometer module)
     object_temperature = uint16_t(tempObjectC * 10);
 
 
-    tempAmbientC = mlx.readAmbientTempC() - (3.21 - 3) * 0.6; //supply voltage compensation
+    tempAmbientC = mlx.readAmbientTempC() - (3.21 - 3) * 0.6; //supply voltage compensation according datasheet of MLX90614(3.21V measured on voltage stabilisator on thermometer module)
     tempAmbientC = tempAmbientC;
     ambient_temperature = byte(tempAmbientC);
 

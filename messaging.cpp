@@ -2,7 +2,7 @@
 #include <arduino.h>
 #include "GastroMarket.h"
 
-byte message[20] = {0};
+byte message[20] = {0}; 
 
 #define BUTTON_PRESSED 0
 #define HAND_SENSOR 1
@@ -25,8 +25,8 @@ void Send_Data()
   message[8] = (RightINCounter >> 8) & 0xFF;           //Person counter IN right side
   message[9] = (RightOUTCounter) & 0xFF;          //Person counter OUT right side
   message[10] = (RightOUTCounter >> 8) & 0xFF;         //Person counter OUT right side
-  message[11] = (byte)(Left38Raw | (Left56Raw << 4));
-  message[12] = (byte)(Right38Raw | (Right56Raw << 4));
+  message[11] = (byte)(Left38Raw | (Left56Raw << 4)); //RAW data from left IR sensors (number of reflections per second)
+  message[12] = (byte)(Right38Raw | (Right56Raw << 4));//RAW data from right IR sensors (number of reflections per second)
   
  if(buttonPressed) message[13] |= 1 << BUTTON_PRESSED; 
  else message[13] &= ~(1 << BUTTON_PRESSED);
@@ -34,11 +34,11 @@ void Send_Data()
  else message[13] &= ~(1 << HAND_SENSOR);
  if(turningOff)  message[13] |= 1 << TURNING_OFF; 
  else  message[13] &= ~(1 << TURNING_OFF);
-  message[14] = ambient_temperature;
-  message[15] = BatteryPercentage;            //raw voltage divider battery
-  message[16] = SonarDistance;                    //Sonar Distance in cm divided by 10
-  message[17] = (object_temperature) & 0xFF;
-  message[18] = (object_temperature >> 8) & 0xFF; 
+  message[14] = ambient_temperature;  //ambient temperature in degrees
+  message[15] = BatteryPercentage;            //Battert voltage in percentage
+  message[16] = SonarDistance;                    //Sonar distance devided by 2 to fit inside the byte
+  message[17] = (object_temperature) & 0xFF;  //16bit object temperature
+  message[18] = (object_temperature >> 8) & 0xFF; //16bit object temperature
 
   byte checksumValue = 0;
   for (int i = 2; i < 19; i++)checksumValue ^= message[i];
@@ -46,6 +46,7 @@ void Send_Data()
 
   Serial.write(message, sizeof(message));
 
+  //null values when data is send
   Left38Raw = false;
   Left56Raw = false;
   Right38Raw = false;
@@ -53,7 +54,7 @@ void Send_Data()
   buttonPressed = false;
 }
 
-
+//Parse received data
 void parseRXData(byte * dataToParse)
 {
   byte input_string[18];
@@ -133,6 +134,7 @@ void parseRXData(byte * dataToParse)
   }
 }
 
+//Get data from serial buffer
 void Get_Data()
 {
   //Receive message from smart daevice
