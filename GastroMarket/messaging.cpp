@@ -1,6 +1,7 @@
 #include "messaging.h"
 #include <arduino.h>
 #include "GastroMarket.h"
+#include <Stream.h>
 
 byte message[20] = {0}; 
 
@@ -134,6 +135,7 @@ void parseRXData(byte * dataToParse)
   }
 }
 
+ char* header = '$<';
 //Get data from serial buffer
 void Get_Data()
 {
@@ -143,7 +145,7 @@ void Get_Data()
   {
     byte readBuffer[20] = {0};
 
-    if (Serial.find("$<"))
+    if (Serial.find('$<'))
     {
       Serial.readBytes(readBuffer, 18);
       parseRXData(readBuffer);

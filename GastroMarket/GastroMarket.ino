@@ -1,4 +1,4 @@
-#include "PinChangeInt.h"
+#include "PinChangeInterrupt.h"
 #include "GastroMarket.h"
 #include "messaging.h"
 #include "TimerOne.h"
