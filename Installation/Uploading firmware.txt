@@ -1,0 +1,9 @@
+1. V nastaveniach Arduino prostredia treba zaskrtnut obe policka podla obrazka (Settings.png)
+2. Stlacte tlacidlo pre nahratie Arduina
+3. Posledny riadok pred oranzovym textom je prikaz na nahratie kodu. (obrazok Link.png) Treba ho cely skopirovat a vlozit do nejakeho textoveho editoru. Napr. Notepad
+4. Adresu kodu (obrazok link2.png) treba zamenit za adresu kodu v priecinku Firmware Bude to vyzerat nejako takto: C://.../GitHub/GastroMarket/GastroMarket/Firmware/GastroMarket.ino.hex
+5. Seriovy port treba prepisat za seriovy port ktory pridelil program Arduinu pripojeneho k pocitacu.
+6. Otvorte prikazovy riadok, cely riadok vlozte a stlacte enter.
+
+
+Priklad riadku z mojho PC: C:\Users\Graphic\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/bin/avrdude -CC:\Users\Graphic\AppData\Local\Arduino15\packages\arduino\tools\avrdude\6.3.0-arduino17/etc/avrdude.conf -v -patmega328p -carduino -PCOM17 -b57600 -D -Uflash:w:C:\Users\Graphic\Documents\GitHub\GastroMarket\GastroMarket\Firmware\GastroMarket.ino.hex:i 

@@ -447,7 +447,13 @@ void BatteryCheck()
   static int lowVoltageCounter = 0;
   double batteryRaw = analogRead(BATTERY_SENSOR);
   uint16_t rawBatteryPercentage = 0;
-  rawBatteryPercentage = (uint16_t)(((batteryRaw-EMPTY)/(FULL-EMPTY))*100)*10;
+  if(batteryRaw > EMPTY)
+  {
+    rawBatteryPercentage = (uint16_t)(((batteryRaw-EMPTY)/(FULL-EMPTY))*100)*10;
+  }
+  else rawBatteryPercentage = 0;
+
+  if( rawBatteryPercentage > 1000) rawBatteryPercentage = 1000;
   
   BatterySum = BatterySum - BatteryFilt + rawBatteryPercentage;
   BatteryFilt = BatterySum >> (3);
@@ -529,10 +535,10 @@ void handleEvent(AceButton* /* button */, uint8_t eventType,
 static uint32_t SonarSum;
 static uint64_t SonarFilt = 0;
 
-#define FILTER_POWER_SONAR 8 //Low pass filter for sonar 
+#define FILTER_POWER_SONAR 10 //Low pass filter for sonar 
 #define MAX_RANG (502.0) //Max range in cm
 #define MAX_RELIABLE_SONAR_DISTANCE 407 //200cm approx
-#define  ADC_SOLUTION      (1023.0)//ADC accuracy of Arduino UNO is 10bit
+#define ADC_SOLUTION      (1023.0)//ADC accuracy of Arduino UNO is 10bit
 
 void checkSonar()
 {

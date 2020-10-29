@@ -37,8 +37,8 @@ const int BUTTON_PIN = 2;
 #define SENDING_FREQUENCY_HZ 4      //frequency of sending messages to app
 
 
-#define FULL 252.0 //RAW analog battery value for full battery
-#define EMPTY 204 //RAW analog battery value for empty battery
+#define FULL 240.0 //RAW analog battery value for full battery
+#define EMPTY 207 //RAW analog battery value for empty battery
 
 extern uint64_t currentTime;
 
